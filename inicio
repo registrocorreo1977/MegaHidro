@@ -1,0 +1,630 @@
+// DHT 11 - pin Vcc a 5V
+// pin Data a pin 3 Mega
+// pin Gnd a Negativo 5V
+
+// TDS Meter - 
+// pin Negativo a Negativo 5V
+// pin Positivo a 5V
+// pin A a A1 Mega
+
+//  Reloj RTC DS1307 
+// pin SCL a SCL 21 Mega
+// pin SDA a SDA 20 Mega
+// pin Vcc a 5V
+// pin GND a Negativo 5V
+
+// Sensor pH
+// pH pin Po a pin A0 Mega
+// pin G a Negativo 5V
+// pin G a Negativo 5V
+// pin V+ a 5V
+
+//Sensor temperatura liquidos
+// cable rojo a 5v
+// negro a GND
+// amarillo a resistencia 4.7 ohm y a pin 4 de datos
+
+// LCD 240x240
+// GND - GND Mega
+// VCC - 5V Mega
+// SCL - pin 52
+// SDA - pin 51
+// RES - pin 9
+// DC - pin 8 
+// BLK - 5V Mega - Sin usar
+
+//WIFI
+// 3.3V a 5V general
+// RX a pin 18
+// RST a nada
+// I00 a nada
+// EN a 5V
+// I02 a nada
+// TX a pin 19
+// GND a GND
+
+
+
+#include <SoftwareSerial.h>
+#include <DHT.h>
+#include "WiFiEsp.h"
+#include <Wire.h>    // Para reloj RTC
+#include <RTClib.h>  // Para reloj RTC
+#include <TimeLib.h>
+//#include <WiFiEspClient.h>
+#include <WiFiEspUdp.h>
+#include <OneWire.h>   // Sensor temperatura liquidos             
+#include <DallasTemperature.h> // Sensor temperatura liquidos  
+#include <Adafruit_GFX.h>    // Core graphics library - Pantalla 240x240
+#include <Adafruit_ST7789.h> // Hardware-specific library for ST7789 - Pantalla 240x240
+#include <SPI.h> // - Pantalla 240x240
+
+#define TFT_CS 10 // if your display has CS pin - NO se USA - Pantalla 240x240
+#define TFT_RST 9 // reset pin - Pantalla 240x240
+#define TFT_DC 8 // data pin - Pantalla 240x240
+#define TFT_MOSI 51 // - Pantalla 240x240
+#define TFT_SCLK 52 // - Pantalla 240x240
+Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST); // - Pantalla 240x240
+ 
+float p = 3.1415926; //  - Pantalla 240x240
+
+OneWire ourWire(4);                //Se establece el pin 4 como bus OneWire // Sensor temperatura liquidos  
+ 
+DallasTemperature sensors(&ourWire); //Se declara una variable u objeto para nuestro sensor // Sensor temperatura liquidos  
+
+RTC_DS3231 rtc;  // Para Reloj RTC
+unsigned long lastUpdate = 0;
+
+const int inputPin = 13; // pin para pulsador
+int value = 0; // para pulsador
+
+// Definir el intervalo de tiempo en milisegundos
+///const unsigned long intervalo = 60000; // 60 segundos
+///unsigned long tiempoAnterior = 0;
+
+// ********************************************************* DEFINITIONS *********************************************************
+char ssid[] = "Inalambrica";  // tu SSID de red
+char pass[] = "zhazhazha";    // tu contraseña de red
+int status = WL_IDLE_STATUS;  // estado del módulo WiFi
+
+// ********************************************************* VARIABLES *********************************************************
+float t;
+float h;
+float PH;
+float PHVol;
+float TDS;
+float TDSVol;
+float TempLiquidos; // Declarar la variable a nivel global para medir temperatura liquidos
+
+
+#define DHTPIN 3
+#define DHTTYPE DHT11
+
+// Definir el pin de reinicio del ESP8266
+#define ESP_RESET_PIN 9
+
+//byte estadoTimbre;
+const int timbreLargo = 9000;
+const int timbreCorto = 1000;
+const int timbreCorto1 = 7500;
+unsigned long tt = 0;
+
+const int analogInPinPH = 0;
+const int analogInPinTDS = 1;
+
+
+
+int buf[10];
+int temp = 0;
+unsigned long int inValue;
+
+DHT dht(DHTPIN, DHTTYPE);
+
+// Variables globales para almacenar las últimas 3 mediciones de pH
+float pHHistory[3] = {0};
+int pHHistoryIndex = 0;
+// Hasta acá variables regulador pH
+
+
+// Desde acá control rele
+const char daysOfTheWeek[7][4] = { "Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab" };
+byte rx = 0, offset = 0;
+byte datos[6];
+bool Timbre = false;
+
+struct timbre_e {
+  byte hora;
+  byte minutos;
+  uint32_t duracion;  // en mseg
+};
+
+// datos de hora, minutos y duracion en mseg de disparo del timbre
+const timbre_e datosTimbre[] = {
+                          { 7, 0, timbreLargo },
+                          { 7, 40, timbreCorto },
+                          { 8, 20, timbreLargo },
+                          { 8, 30, timbreLargo },
+                          { 9, 0, timbreCorto1 },
+                          { 9, 10, timbreCorto },
+                          { 9, 30, timbreCorto1 },
+                          { 9, 50, timbreLargo },
+                          { 10, 0, timbreLargo },
+                          { 10, 40, timbreCorto },
+                          { 11, 20, timbreLargo },
+                          { 11, 30, timbreLargo },
+                          { 12, 20, timbreCorto },
+                          { 12, 23, timbreCorto },
+                          { 12, 33, timbreLargo },
+                          { 15, 2, timbreCorto },
+                          { 15, 4, timbreLargo },
+                          { 15, 6, timbreLargo },
+                          { 15, 8, timbreCorto1 },
+                          { 15, 10, timbreCorto1 },
+                          { 14, 40, timbreLargo },
+                          { 14, 42, timbreLargo },
+                          { 14, 44, timbreCorto },
+                          { 14, 46, timbreLargo },
+                          { 14, 48, timbreLargo },
+                          { 14, 50, timbreLargo }
+                        };
+
+byte timbreIndex = 0;
+byte numTimbres = sizeof(datosTimbre) / sizeof(datosTimbre[0]);
+
+// hasta acá control rele
+
+// verifica cual es la siguiente alarma (por si hubo un reset o ajuste de hora)
+void verificar_proxima_alarma() {
+  DateTime now = rtc.now();
+  // pasa hora y minutos actual a minutos para facilitar la comparación
+  int tmp = now.hour() * 60 + now.minute();
+  byte i = 0;
+  while (i < numTimbres) {
+    if (datosTimbre[i].hora * 60 + datosTimbre[i].minutos > tmp) {
+      break;
+    }
+    i++;
+  }
+  timbreIndex = i;
+  if (timbreIndex == numTimbres) timbreIndex = 0;
+}
+
+void setup() {
+
+  // Serial.begin(115200);
+
+  // Use this initializer (uncomment) if using a 1.3" or 1.54" 240x240 TFT:
+  tft.init(240, 240, SPI_MODE2);           // Init ST7789 240x240
+  tft.setRotation(2);
+  
+  pinMode(7, OUTPUT); // Rele Bomba agua
+  pinMode(2, OUTPUT); // Rele regulador pH
+  pinMode(inputPin, INPUT); // para pin pulsador
+
+  if (timeStatus() != timeSet) {
+    Serial.println("Unable to sync with the RTC");
+  } else {
+    Serial.println("RTC has set the system time");
+  }
+
+  //*************************RELOJ***********************
+  Serial.begin(115200);
+  Wire.begin();  //Iniciamos el Bus I2C
+  rtc.begin();   // Inicializamos el RTC
+  //rtc.adjust(DateTime(24, 4, 10, 9, 42, 18)); // acá para actualizar y después comentarla
+  if (!rtc.begin()) {
+    Serial.println("No se encontró el módulo RTC");
+    while (1)
+      ;
+  }
+
+  if (rtc.lostPower()) {
+    Serial.println("Se perdió la alimentación del RTC, ajustando la hora!");
+    //rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); // Esta línea carga la hora del Pc, después hay que comentarla}
+    //rtc.adjust(DateTime(2, 27, 24, 18, 24, 00)); // Esto sirve para ajustar la hora manualmente
+  }
+  //************************Hasta acá reloj********************
+
+  Serial.begin(115200);   // Inicializa el puerto serie para la depuración
+  Serial1.begin(115200);  // Inicializa el puerto serie 1 para el módulo ESP
+  WiFi.init(&Serial1);    // Inicializa el módulo ESP
+  // Inicializar el pin de reinicio del ESP8266 como salida
+  pinMode(ESP_RESET_PIN, OUTPUT);
+
+  if (WiFi.status() == WL_NO_SHIELD) {  // Verifica la presencia del módulo WiFi
+    Serial.println("WiFi shield not present");
+    while (true)
+      ;
+  }
+
+  // Intenta conectarse a la red WiFi
+  while (status != WL_CONNECTED) {
+    Serial.print("Attempting to connect to WPA SSID: ");
+    Serial.println(ssid);
+    status = WiFi.begin(ssid, pass);
+    delay(5000);  // Espera 5 segundos para la conexión
+  }
+
+  Serial.println("You're connected to the network");
+
+  DateTime now = rtc.now();
+  Serial.print(now.year(), DEC);
+  Serial.print('/');
+  Serial.print(now.month(), DEC);
+  Serial.print('/');
+  Serial.print(now.day(), DEC);
+  Serial.print(" ");
+  Serial.print(now.hour(), DEC);
+  Serial.print(':');
+  Serial.print(now.minute(), DEC);
+  Serial.print(':');
+  Serial.println(now.second(), DEC);
+
+
+
+  //  pinMode (A1, INPUT);
+  verificar_proxima_alarma();
+
+  // ********************************************************* BUCLE PRINCIPAL *********************************************************
+}
+
+void loop() {
+if (Serial.available()) {
+    Timbre = true;
+    rx = (uint8_t)Serial.read();
+    datos[offset] = rx;
+    offset++;
+    if (offset == 6) {
+      rtc.adjust(DateTime(datos[0] + 2000, datos[1], datos[2], datos[3], datos[4], datos[5]));
+      offset = 0;
+      Timbre = false;
+      verificar_proxima_alarma();
+    }
+  }
+  DateTime now = rtc.now();
+  drawTimeOnScreenActual(now.hour(), now.minute(), now.second());
+  
+
+  if (now.dayOfTheWeek() == 0 || now.dayOfTheWeek() == 6) {  //chequea sabado y domingo
+    //Serial.println(F("Sabado o domingo"));
+  } else {  //si es dia de semana
+    //********************************************************************************************************
+    if (Timbre == false) {
+      if (now.hour() == datosTimbre[timbreIndex].hora && now.minute() == datosTimbre[timbreIndex].minutos && now.second() == 0) {
+        //Activar timbre
+        Serial.println(F("Timbre ON"));
+        digitalWrite(2, HIGH);
+        digitalWrite(7, HIGH);
+        Timbre = true;
+        tt = millis();
+      }
+    } else {
+      if (millis() - tt > datosTimbre[timbreIndex].duracion) {
+        Serial.println(F("Timbre OFF"));
+        digitalWrite(2, LOW);
+        digitalWrite(7, LOW);
+        Timbre = false;
+        timbreIndex++;
+        if (timbreIndex == numTimbres) timbreIndex = 0;
+      }
+    }
+      // **********************************RELOJ*******************************
+    //DateTime now = rtc.now();
+
+      if (now.minute() == 11 or (now.minute() == 16 or (now.minute() == 21 or (now.minute() == 26 or (now.minute() == 31 or (now.minute() == 36 or (now.minute() == 41 or (now.minute() == 46 or (now.minute() == 51 or (now.minute() == 56)))))))))) {
+        // drawValuesOnScreen(t, h, PH, TDS, TempLiquidos);
+        
+        Serial.println();
+        printCurrentNet();
+        printWifiData();
+        LecturaTH();
+        Mediciones();
+        drawValuesOnScreen(t, h, PH, TDS, TempLiquidos);
+        //Serial.print("Temperatura Liquido = "); Esto imprime los datos para ver si estar ok antes de enviarlos
+        //Serial.print(TempLiquidos); Esto imprime los datos para ver si estar ok antes de enviarlos
+        //Serial.println(" C"); Esto imprime los datos para ver si estar ok antes de enviarlos
+        drawTimeOnScreen(now.hour(), now.minute(), now.second());
+        delay(100000); //Esto imprime los datos para ver si estar ok antes de enviarlos
+
+      } else {
+        
+        delay(1000);
+      }
+    }
+  }
+  // ********************************************************* FUNCIONES *********************************************************
+  void LecturaTH() {
+    dht.begin();
+
+    h = dht.readHumidity();
+    t = dht.readTemperature();
+
+    if (isnan(h) || isnan(t)) {
+      Serial.println("Error al leer el sensor DHT11.");
+    } else {
+      Serial.print("Humedad = ");
+      Serial.println(h);
+      Serial.print("Temperatura = ");
+      Serial.println(t);
+    }
+  }
+
+  void MedirPH() {
+    for (int i = 0; i < 10; i++) {
+      buf[i] = analogRead(analogInPinPH);
+      delay(10);
+    }
+
+    for (int i = 0; i < 9; i++) {
+      for (int j = i + 1; j < 10; j++) {
+        temp = buf[i];
+        buf[i] = buf[j];
+        buf[j] = temp;
+      }
+    }
+
+    inValue = 0;
+    for (int i = 2; i < 8; i++) {
+      inValue = inValue + buf[i];
+    }
+
+    PHVol = (float)inValue * 100 * 5 / 1024 / 6;
+
+    Serial.print("Voltaje mv (pH) =");
+    Serial.println(PHVol);
+
+    PH = -0.0563 * PHVol + 22.579;
+    Serial.print("pH =");
+    Serial.println(PH);
+  }
+
+  void MedirTDS() {
+    for (int i = 0; i < 10; i++) {
+      buf[i] = analogRead(analogInPinTDS);
+      delay(10);
+    }
+
+    for (int i = 0; i < 9; i++) {
+      for (int j = i + 1; j < 10; j++) {
+        temp = buf[i];
+        buf[i] = buf[j];
+        buf[j] = temp;
+      }
+    }
+
+    inValue = 0;
+    for (int i = 2; i < 8; i++) {
+      inValue = inValue + buf[i];
+    }
+
+    TDSVol = (float)inValue * 100 * 5 / 1024 / 6;
+
+    Serial.print("Voltaje mv (TDS) =");
+    Serial.println(TDSVol);
+
+    TDS = map(TDSVol, 0, 1023, 0, 1000);
+    Serial.print("TDS =");
+    Serial.println(TDS);
+  }
+
+void MedirTempLiquidos() {
+  //Serial.begin(115200);
+  sensors.begin();   //Se inicia el sensor
+  sensors.requestTemperatures();   //Se envía el comando para leer la temperatura
+  //float 
+  TempLiquidos= sensors.getTempCByIndex(0); //Se obtiene la temperatura en ºC
+
+  Serial.print("Temperatura Liquido = ");
+  Serial.print(TempLiquidos);
+  Serial.println(" C");
+  //delay(100);              
+
+} 
+
+
+  void EnvioDatos() {
+    Serial.println("Enviando datos al servidor...");
+
+    //String datos_a_enviar = "temp=" + String(t) + "&hum=" + String(h) + "&pH=" + String(PH) + "&TDS=" + String(TDS) + "&tempLiq=" + String(templiquidos);
+    String datos_a_enviar = "temperatura=" + String(t) + "&humedad=" + String(h) + "&pH=" + String(PH) + "&TDS=" + String(TDS) + "&TempLiquidos=" + String(TempLiquidos);
+    WiFiEspClient client;
+    int intentos = 0;
+    while (intentos < 3) {
+        if (client.connect("192.168.10.37", 80)) {
+            client.print("POST /EspPost.php HTTP/1.1\r\n");
+            client.print("Host: 192.168.10.37\r\n");
+            client.print("Content-Type: application/x-www-form-urlencoded\r\n");
+            client.print("Content-Length: ");
+            client.print(datos_a_enviar.length());
+            client.print("\r\n\r\n");
+            client.print(datos_a_enviar);
+
+            Serial.println("Datos enviados.");
+
+            while (client.available()) {
+                char c = client.read();
+                Serial.write(c);
+            }
+
+            client.stop();
+            break; // Sale del bucle si la conexión y el envío son exitosos
+        } else {
+            Serial.println("Error al conectar al servidor. Reintentando...");
+            reiniciarESP();
+            intentos++;
+           delay(1000); // Espera 1 segundo antes de reintentar
+        }
+    }
+
+    if (intentos == 3) {
+        Serial.println("Se han agotado los intentos. No se pudo enviar datos al servidor.");
+    }
+}
+
+  void Mediciones() {
+    //DateTime now = rtc.now();
+    //Serial.print(now.year(), DEC);
+    //Serial.print('/');
+    //Serial.print(now.month(), DEC);
+    //Serial.print('/');
+    //Serial.print(now.day(), DEC);
+    //Serial.print(" ");
+    //Serial.print(now.hour(), DEC);
+    //Serial.print(':');
+    //Serial.print(now.minute(), DEC);
+    //Serial.print(':');
+    //Serial.print(now.second(), DEC);
+
+
+    MedirPH();
+    MedirTDS();
+    MedirTempLiquidos();
+    EnvioDatos();
+
+     // Llamar a la función verificarPH() con la medición actual de pH
+    verificarPH(PH);
+  }
+
+  void printCurrentNet() {
+    Serial.print("SSID: ");
+    Serial.println(WiFi.SSID());
+
+    byte bssid[6];
+    WiFi.BSSID(bssid);
+    char buf[20];
+    sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", bssid[5], bssid[4], bssid[3], bssid[2], bssid[1], bssid[0]);
+    Serial.print("BSSID: ");
+    Serial.println(buf);
+
+    long rssi = WiFi.RSSI();
+    Serial.print("Signal strength (RSSI): ");
+    Serial.println(rssi);
+  }
+
+  void printWifiData() {
+    IPAddress ip = WiFi.localIP();
+    Serial.print("IP Address: ");
+    Serial.println(ip);
+
+    byte mac[6];
+    WiFi.macAddress(mac);
+    char buf[20];
+    sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
+    Serial.print("MAC address: ");
+    Serial.println(buf);
+  }
+
+void drawValuesOnScreen(float temp, float hum, float pH, float TDS, float TempLiquidos) {
+  tft.fillScreen(ST77XX_BLACK);
+
+  tft.setCursor(10, 10);
+  tft.setTextSize(2);
+  tft.setTextColor(ST77XX_RED);
+  tft.print("Temperatura: ");
+  tft.println(temp);
+
+  tft.setCursor(10, 40);
+  tft.setTextSize(2);
+  tft.setTextColor(ST77XX_RED);
+  tft.print("Humedad: ");
+  tft.println(hum);
+
+  tft.setCursor(10, 70);
+  tft.setTextSize(2);
+  tft.setTextColor(ST77XX_RED);
+  tft.print("pH: ");
+  tft.println(pH);
+
+  tft.setCursor(10, 100);
+  tft.setTextSize(2);
+  tft.setTextColor(ST77XX_BLUE);
+  tft.print("TDS: ");
+  tft.println(TDS);
+
+  tft.setCursor(10, 130);
+  tft.setTextSize(2);
+  tft.setTextColor(ST77XX_BLUE);
+  tft.print("Temp Agua: ");
+  tft.println(TempLiquidos);
+
+}
+
+void drawTimeOnScreen(int hour, int minute, int second) {
+    // Limpiar el área donde se muestra la hora
+  tft.fillRect(10, 160, 220, 20, ST77XX_BLACK);
+
+  tft.setCursor(10, 160);
+  tft.setTextSize(2);
+  tft.setTextColor(ST77XX_WHITE);
+  tft.print("H. Medic.: ");
+  if (hour < 10) {
+    tft.print("0");
+  }
+  tft.print(hour);
+  tft.print(":");
+  if (minute < 10) {
+    tft.print("0");
+  }
+  tft.print(minute);
+  tft.print(":");
+  if (second < 10) {
+    tft.print("0");
+  }
+  tft.println(second);
+}
+
+
+void reiniciarESP() {
+  // Desactivar el módulo ESP8266
+  digitalWrite(ESP_RESET_PIN, LOW);
+  delay(100);
+  // Activar el módulo ESP8266
+  digitalWrite(ESP_RESET_PIN, HIGH);
+}
+
+void drawTimeOnScreenActual(int hour, int minute, int second) {
+  tft.setCursor(10, 190);
+  tft.setTextSize(2);
+  tft.setTextColor(ST77XX_WHITE);
+  tft.print("Hora: ");
+  if (hour < 10) {
+    tft.print("0");
+  }
+  tft.print(hour);
+  tft.print(":");
+  if (minute < 10) {
+    tft.print("0");
+  }
+  tft.print(minute);
+  tft.print(":");
+  if (second < 10) {
+    tft.print("0");
+  }
+  tft.println(second);
+}
+
+// Función para verificar si las últimas 3 mediciones de pH son mayores a 6.5
+void verificarPH(float pH) {
+  // Guardar la nueva medición en el historial
+  pHHistory[pHHistoryIndex] = pH;
+  pHHistoryIndex = (pHHistoryIndex + 1) % 3; // Circularmente avanzar al siguiente índice
+
+  // Verificar si todas las mediciones son mayores a 6.5
+  bool todasMayoresQue6_5 = true;
+  for (int i = 0; i < 3; i++) {
+    if (pHHistory[i] <= 6.5) {
+      todasMayoresQue6_5 = false;
+      break;
+    }
+  }
+    // Si todas las mediciones son mayores a 6.5, activar el relé
+  if (todasMayoresQue6_5) {
+    digitalWrite(7, HIGH); // Activar el relé en el pin 2
+    Serial.println("Bajando pH !!!!!!");
+    delay(5000); // tiempo encendido
+    Serial.println("Bomba pH apagada !!!!!!");
+    digitalWrite(7, LOW);  // Desactivar el relé en el pin 2 después de bajar el pH
+  } else {
+    digitalWrite(7, LOW);  // Desactivar el relé en el pin 2
+  }
+}
